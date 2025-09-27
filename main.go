@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"hash/fnv"
+	"math"
 	"os"
 	"runtime"
-	"strings"
+	"slices"
+	"strconv"
 	"sync"
 )
 
@@ -31,15 +35,28 @@ import (
 const FILE_CHUNK_SIZE = 1024 * 1024 * 4
 const WORK_LINE_SIZE = 4096
 
+type HashType = uint32
+
 type BlockData struct {
-	Id       int
-	Min      float32
-	Max      float32
-	Sum      float32
+	Name     string
+	Min      float64
+	Max      float64
+	Sum      float64
+	Mean     float64
 	Quantity int
 }
 
-type StationMap = map[string]int
+func NewBlockData(name string) BlockData {
+	return BlockData{
+		Name:     name,
+		Min:      999.9,
+		Max:      -999.9,
+		Sum:      0.0,
+		Quantity: 0,
+	}
+}
+
+type StationMap = map[HashType]BlockData
 
 func Solve(input, output string) error {
 	inFs, _ := os.OpenFile(input, os.O_RDONLY, 0o764)
@@ -50,70 +67,130 @@ func Solve(input, output string) error {
 		return err
 	}
 	defer outFs.Close()
-	dataMap := make(StationMap, 4096)
-	outFs.Write([]byte{'{'})
+	dataMap := make(StationMap, 8192)
 	err = start1BRC(inFs, outFs, dataMap)
-	outFs.Write([]byte{'}', '\n'})
-	fmt.Println(dataMap)
 	return err
 }
 
 func start1BRC(inFs, outFs *os.File, dataMap StationMap) error {
-	numThreads := runtime.NumCPU()
 	var wg sync.WaitGroup
-	reader := make(chan string, numThreads)
-	writer := make(chan BlockData, numThreads)
+	// Keep one thread for main/writeOutput
+	numThreads := runtime.NumCPU() - 1
+	reader := make(chan []byte, numThreads)
+	writer := make(chan StationMap, numThreads)
+	stop := make(chan bool)
 
-	go readInput(inFs, reader)
-	go writeOutput(writer, dataMap)
+	go mergeBlocks(writer, stop, dataMap)
 	for range numThreads {
 		wg.Add(1)
 		go compute(&wg, reader, writer)
 	}
+
+	nOfBlocks := readInput(inFs, reader)
+	fmt.Println("nOfBLocks=", nOfBlocks)
 	wg.Wait()
 	close(writer)
+	<-stop
+	writeOutput(outFs, dataMap)
 	return nil
 }
 
-func compute(wg *sync.WaitGroup, reader chan string, writer chan BlockData) {
+func writeOutput(outFs *os.File, dataMap StationMap) {
+	strings := make([]string, 0, 4096)
+	for _, v := range dataMap {
+		mean := math.Ceil(v.Sum/float64(v.Quantity)*(math.Pow10(1))) / math.Pow10(1)
+		strings = append(strings, fmt.Sprintf("%s=%.1f/%.1f/%.1f, ", v.Name, v.Min, mean, v.Max))
+	}
+	slices.Sort(strings)
+	strings[len(strings)-1] = strings[len(strings)-1][:len(strings[len(strings)-1])-2]
+	outFs.Write([]byte{'{'})
+	for _, str := range strings {
+		outFs.WriteString(str)
+	}
+	outFs.Write([]byte{'}', '\n'})
+}
+
+func compute(wg *sync.WaitGroup, reader chan []byte, writer chan StationMap) {
 	defer wg.Done()
 	for data := range reader {
-		// Format: xxx;-xx.x
-		// FOREACH line -> dont split, linear walk + slices
-		// 1) Find ';'
-		// 2) convert name to int hash
-		// 3) convert end of line to float (from ;+1 to \n or 0)
-		// 4) get entry for xxx if existing, else empty data
-		// 5) compute
-		// 6) store new value
-		nOfLines := strings.Count(data, "\n") + 1
-		// fmt.Println("line=", data)
-		writer <- BlockData{Id: 0, Min: 0, Max: 0, Sum: 0, Quantity: nOfLines}
+		h32 := fnv.New32a()
+		localMap := make(StationMap, 4096)
+		// iterate through the block
+		for i := 0; i < len(data); i++ {
+			// iterate one line
+			lineSplitPos := bytes.IndexByte(data[i:min(len(data), i+101)], ';') + i
+			lineEndPos := bytes.IndexByte(data[lineSplitPos+1:min(len(data), lineSplitPos+1+6)], '\n')
+			if lineEndPos == -1 {
+				lineEndPos = len(data)
+			} else {
+				lineEndPos += lineSplitPos + 1
+			}
+			// fmt.Println("station: ", string(data[i:lineSplitPos]))
+			// fmt.Println("temp: ", string(data[lineSplitPos+1:lineEndPos]))
+			h32.Write(data[i:lineSplitPos])
+			station := h32.Sum32()
+			h32.Reset()
+			temp, _ := strconv.ParseFloat(string(data[lineSplitPos+1:lineEndPos]), 64)
+			// if err != nil {
+			// 	fmt.Println(err)
+			// }
+			// Get or create blockdata for this station
+			e, ok := localMap[station]
+			if !ok {
+				e = NewBlockData(string(data[i:lineSplitPos]))
+			}
+			// update value
+			if temp < e.Min {
+				e.Min = temp
+			}
+			if temp > e.Max {
+				e.Max = temp
+			}
+			e.Sum += temp
+			e.Quantity += 1
+			localMap[station] = e
+			i = lineEndPos
+		}
+		writer <- localMap
 	}
 }
 
-func writeOutput(writer chan BlockData, dataMap StationMap) {
-	total := 0
-	dataMap["ok"] = 0
-	for data := range writer {
-		total += int(data.Quantity)
-		dataMap["ok"] += int(data.Quantity)
+func mergeBlocks(writer chan StationMap, stop chan bool, dataMap StationMap) {
+	// merge each divided data to main dataMap
+	for localMap := range writer {
+		for k, v := range localMap {
+			// lock on write
+			e, ok := dataMap[k]
+			// lock on write
+			if !ok {
+				dataMap[k] = v
+			} else {
+				dataMap[k] = BlockData{
+					Name:     v.Name,
+					Min:      math.Min(e.Min, v.Min),
+					Max:      math.Max(e.Max, v.Max),
+					Sum:      e.Sum + v.Sum,
+					Quantity: e.Quantity + v.Quantity,
+				}
+			}
+		}
 	}
-	fmt.Println("Total=", total)
+	// fmt.Println(dataMap)
+	stop <- true
 }
 
 // Read input file by chunk and send block of full lines to the compute thread
-func readInput(inFs *os.File, reader chan string) {
-	fmt.Println("Start of reader")
+func readInput(inFs *os.File, reader chan []byte) int {
 	buffer := make([]byte, FILE_CHUNK_SIZE)
-	lastNlOffset := 0
 	bufferOffset := 0
+	nOfBLocks := 0
 	for {
 		n, err := inFs.Read(buffer[bufferOffset:])
 		if err != nil || n == 0 {
 			break
 		}
 		endOfByteRead := bufferOffset + n
+		lastNlOffset := 0
 		// here compute lines
 		for i := endOfByteRead - 1; i >= 0; i-- {
 			if buffer[i] == '\n' {
@@ -121,12 +198,15 @@ func readInput(inFs *os.File, reader chan string) {
 				break
 			}
 		}
-		reader <- string(buffer[:lastNlOffset])
+		cpyBuff := make([]byte, lastNlOffset)
+		copy(cpyBuff, buffer[:lastNlOffset])
+		reader <- cpyBuff
+		nOfBLocks += 1
 		copy(buffer, buffer[lastNlOffset+1:endOfByteRead])
 		bufferOffset = endOfByteRead - lastNlOffset - 1
 	}
 	close(reader)
-	fmt.Println("End of reader")
+	return nOfBLocks
 }
 
 func run(args []string) int {
