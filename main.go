@@ -33,7 +33,7 @@ import (
 // Must be at least the maximum size of a line + 1 for NL
 // So 107 bytes at minimum
 const FILE_CHUNK_SIZE = 1024 * 1024 * 4
-const WORK_LINE_SIZE = 4096
+const MAX_NUMBER_OF_KEYS = 10000
 
 type HashType = uint32
 
@@ -67,7 +67,7 @@ func Solve(input, output string) error {
 		return err
 	}
 	defer outFs.Close()
-	dataMap := make(StationMap, 8192)
+	dataMap := make(StationMap, MAX_NUMBER_OF_KEYS)
 	err = start1BRC(inFs, outFs, dataMap)
 	return err
 }
@@ -86,8 +86,7 @@ func start1BRC(inFs, outFs *os.File, dataMap StationMap) error {
 		go compute(&wg, reader, writer)
 	}
 
-	nOfBlocks := readInput(inFs, reader)
-	fmt.Println("nOfBLocks=", nOfBlocks)
+	_ = readInput(inFs, reader)
 	wg.Wait()
 	close(writer)
 	<-stop
@@ -96,11 +95,12 @@ func start1BRC(inFs, outFs *os.File, dataMap StationMap) error {
 }
 
 func writeOutput(outFs *os.File, dataMap StationMap) {
-	strings := make([]string, 0, 4096)
+	strings := make([]string, 0, MAX_NUMBER_OF_KEYS)
 	for _, v := range dataMap {
 		mean := math.Ceil(v.Sum/float64(v.Quantity)*(math.Pow10(1))) / math.Pow10(1)
 		strings = append(strings, fmt.Sprintf("%s=%.1f/%.1f/%.1f, ", v.Name, v.Min, mean, v.Max))
 	}
+	// for 10k uniques, sort number is wrong??
 	slices.Sort(strings)
 	strings[len(strings)-1] = strings[len(strings)-1][:len(strings[len(strings)-1])-2]
 	outFs.Write([]byte{'{'})
@@ -114,7 +114,7 @@ func compute(wg *sync.WaitGroup, reader chan []byte, writer chan StationMap) {
 	defer wg.Done()
 	for data := range reader {
 		h32 := fnv.New32a()
-		localMap := make(StationMap, 4096)
+		localMap := make(StationMap, MAX_NUMBER_OF_KEYS)
 		// iterate through the block
 		for i := 0; i < len(data); i++ {
 			// iterate one line
@@ -125,8 +125,6 @@ func compute(wg *sync.WaitGroup, reader chan []byte, writer chan StationMap) {
 			} else {
 				lineEndPos += lineSplitPos + 1
 			}
-			// fmt.Println("station: ", string(data[i:lineSplitPos]))
-			// fmt.Println("temp: ", string(data[lineSplitPos+1:lineEndPos]))
 			h32.Write(data[i:lineSplitPos])
 			station := h32.Sum32()
 			h32.Reset()
@@ -175,7 +173,6 @@ func mergeBlocks(writer chan StationMap, stop chan bool, dataMap StationMap) {
 			}
 		}
 	}
-	// fmt.Println(dataMap)
 	stop <- true
 }
 
