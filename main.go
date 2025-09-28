@@ -37,7 +37,7 @@ import (
 
 // Must be at least the maximum size of a line + 1 for NL
 // So 107 bytes at minimum
-const FILE_CHUNK_SIZE = 1024 * 1024 * 4
+const FILE_CHUNK_SIZE = 1024 * 1024 * 32
 const MAX_NUMBER_OF_KEYS = 10000
 
 type HashType = uint64
@@ -80,17 +80,25 @@ func Solve(input, output string) error {
 func start1BRC(inFs, outFs *os.File, dataMap StationMap) error {
 	var wg sync.WaitGroup
 	// Keep one thread for main/writeOutput
-	numThreads := runtime.NumCPU() - 1
+	numThreads := runtime.NumCPU()
 	reader := make(chan []byte, numThreads)
 	writer := make(chan StationMap, numThreads)
 	stop := make(chan bool)
 
 	go mergeBlocks(writer, stop, dataMap)
-	for range numThreads {
+	for range numThreads - 1 {
 		wg.Add(1)
 		go compute(&wg, reader, writer)
 	}
-	// 8sec
+	// main thread = start, read, wait, write (cannot be parallelized)
+	// 1 thread for merge (merge as soon as a block has been treated)
+	// 1 to (MAX_THREAD-1) for compute (compute as soon values comes from the reader)
+	// using 2 thread (main + 1x merge + 1x compute) = 1min
+	// using 12 thread (main + 1x merge + 1x compute) = 8sec
+	// 8300ms
+	// read only = 2600ms
+	// without merge = 7800ms
+	// other part (merge + compute) = 5700ms
 	time1 := time.Now().UnixMicro() / 1000
 	_ = readInput(inFs, reader)
 	time2 := time.Now().UnixMicro() / 1000
@@ -112,13 +120,15 @@ func writeOutput(outFs *os.File, dataMap StationMap) {
 		strings = append(strings, fmt.Sprintf("%s=%.1f/%.1f/%.1f, ", v.Name, v.Min, mean, v.Max))
 	}
 	// for 10k uniques, sort number is wrong?? i1000 is before i1;, it should not
-	slices.Sort(strings)
-	strings[len(strings)-1] = strings[len(strings)-1][:len(strings[len(strings)-1])-2]
 	var buffer bytes.Buffer
-	buffer.Grow(1024 * 1024 * 3) // enough to hold all test cases
-	buffer.WriteByte('{')
-	for _, str := range strings {
-		buffer.WriteString(str)
+	if len(strings) > 0 {
+		slices.Sort(strings)
+		strings[len(strings)-1] = strings[len(strings)-1][:len(strings[len(strings)-1])-2]
+		buffer.Grow(1024 * 1024 * 3) // enough to hold all test cases
+		buffer.WriteByte('{')
+		for _, str := range strings {
+			buffer.WriteString(str)
+		}
 	}
 	buffer.WriteByte('}')
 	buffer.WriteByte('\n')
