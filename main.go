@@ -8,7 +8,6 @@ import (
 	"os"
 	"runtime"
 	"slices"
-	"strconv"
 	"sync"
 )
 
@@ -38,7 +37,7 @@ const MAX_NUMBER_OF_KEYS = 10000
 type HashType = uint32
 
 type BlockData struct {
-	Name     string
+	Name     []byte
 	Min      float64
 	Max      float64
 	Sum      float64
@@ -46,7 +45,7 @@ type BlockData struct {
 	Quantity int
 }
 
-func NewBlockData(name string) BlockData {
+func NewBlockData(name []byte) BlockData {
 	return BlockData{
 		Name:     name,
 		Min:      999.9,
@@ -128,14 +127,14 @@ func compute(wg *sync.WaitGroup, reader chan []byte, writer chan StationMap) {
 			h32.Write(data[i:lineSplitPos])
 			station := h32.Sum32()
 			h32.Reset()
-			temp, _ := strconv.ParseFloat(string(data[lineSplitPos+1:lineEndPos]), 64)
+			temp, _ := ParseF64(data[lineSplitPos+1 : lineEndPos])
 			// if err != nil {
 			// 	fmt.Println(err)
 			// }
 			// Get or create blockdata for this station
 			e, ok := localMap[station]
 			if !ok {
-				e = NewBlockData(string(data[i:lineSplitPos]))
+				e = NewBlockData(data[i:lineSplitPos])
 			}
 			// update value
 			if temp < e.Min {
