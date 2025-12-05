@@ -1,3 +1,8 @@
+// TO IMPROVE
+// - ParseF64()
+// - IndexByte()
+// map access
+
 package main
 
 import (
@@ -9,6 +14,7 @@ import (
 	"runtime"
 	"slices"
 	"sync"
+	"time"
 )
 
 // Rules and limits
@@ -84,12 +90,18 @@ func start1BRC(inFs, outFs *os.File, dataMap StationMap) error {
 		wg.Add(1)
 		go compute(&wg, reader, writer)
 	}
-
+	// 8sec
+	time1 := time.Now().UnixMicro() / 1000
 	_ = readInput(inFs, reader)
+	time2 := time.Now().UnixMicro() / 1000
+	fmt.Println(time2 - time1)
+	// 40ms
 	wg.Wait()
 	close(writer)
 	<-stop
+	// 70ms
 	writeOutput(outFs, dataMap)
+	//
 	return nil
 }
 
@@ -99,14 +111,18 @@ func writeOutput(outFs *os.File, dataMap StationMap) {
 		mean := math.Ceil(v.Sum/float64(v.Quantity)*(math.Pow10(1))) / math.Pow10(1)
 		strings = append(strings, fmt.Sprintf("%s=%.1f/%.1f/%.1f, ", v.Name, v.Min, mean, v.Max))
 	}
-	// for 10k uniques, sort number is wrong??
+	// for 10k uniques, sort number is wrong?? i1000 is before i1;, it should not
 	slices.Sort(strings)
 	strings[len(strings)-1] = strings[len(strings)-1][:len(strings[len(strings)-1])-2]
-	outFs.Write([]byte{'{'})
+	var buffer bytes.Buffer
+	buffer.Grow(1024 * 1024 * 3) // enough to hold all test cases
+	buffer.WriteByte('{')
 	for _, str := range strings {
-		outFs.WriteString(str)
+		buffer.WriteString(str)
 	}
-	outFs.Write([]byte{'}', '\n'})
+	buffer.WriteByte('}')
+	buffer.WriteByte('\n')
+	outFs.Write(buffer.Bytes())
 }
 
 func compute(wg *sync.WaitGroup, reader chan []byte, writer chan StationMap) {
