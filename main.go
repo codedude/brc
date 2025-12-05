@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
+	"hash/maphash"
 	"math"
 	"os"
 	"runtime"
@@ -34,7 +34,7 @@ import (
 const FILE_CHUNK_SIZE = 1024 * 1024 * 4
 const MAX_NUMBER_OF_KEYS = 10000
 
-type HashType = uint32
+type HashType = uint64
 
 type BlockData struct {
 	Name     []byte
@@ -111,22 +111,18 @@ func writeOutput(outFs *os.File, dataMap StationMap) {
 
 func compute(wg *sync.WaitGroup, reader chan []byte, writer chan StationMap) {
 	defer wg.Done()
+	var h maphash.Hash
 	for data := range reader {
-		h32 := fnv.New32a()
 		localMap := make(StationMap, MAX_NUMBER_OF_KEYS)
 		// iterate through the block
 		for i := 0; i < len(data); i++ {
 			// iterate one line
 			lineSplitPos := bytes.IndexByte(data[i:min(len(data), i+101)], ';') + i
 			lineEndPos := bytes.IndexByte(data[lineSplitPos+1:min(len(data), lineSplitPos+1+6)], '\n')
-			if lineEndPos == -1 {
-				lineEndPos = len(data)
-			} else {
-				lineEndPos += lineSplitPos + 1
-			}
-			h32.Write(data[i:lineSplitPos])
-			station := h32.Sum32()
-			h32.Reset()
+			lineEndPos += lineSplitPos + 1
+			h.Write(data[i:lineSplitPos])
+			station := h.Sum64()
+			h.Reset()
 			temp, _ := ParseF64(data[lineSplitPos+1 : lineEndPos])
 			// if err != nil {
 			// 	fmt.Println(err)
@@ -194,8 +190,8 @@ func readInput(inFs *os.File, reader chan []byte) int {
 				break
 			}
 		}
-		cpyBuff := make([]byte, lastNlOffset)
-		copy(cpyBuff, buffer[:lastNlOffset])
+		cpyBuff := make([]byte, lastNlOffset+1) // include NL for optimization
+		copy(cpyBuff, buffer[:lastNlOffset+1])
 		reader <- cpyBuff
 		nOfBLocks += 1
 		copy(buffer, buffer[lastNlOffset+1:endOfByteRead])
