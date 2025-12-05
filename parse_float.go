@@ -60,15 +60,16 @@ func ParseF64(s []byte) (float64, error) {
 		// }
 		return 0, fmt.Errorf("unparsed tail left after parsing float64 from %q: %q", s, ss)
 	}
-	f := float64(d)
-	if i >= uint(len(s)) {
-		// Fast path - just integer.
-		if minus {
-			f = -f
-		}
-		return f, nil
-	}
-
+	// EDIT no need for our case
+	// f := float64(d)
+	// if i >= uint(len(s)) {
+	// 	// Fast path - just integer.
+	// 	if minus {
+	// 		f = -f
+	// 	}
+	// 	return f, nil
+	// }
+	var f float64
 	if s[i] == '.' {
 		// Parse fractional part.
 		i++

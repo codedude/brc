@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"syscall"
 )
 
-const FILE_CHUNK_SIZE = 1024 * 1024 * 4
-const NUM_THREADS = 1
+// looks like the best settings for parallel pread of big files
+const FILE_CHUNK_SIZE = 1024 * 1024
+const NUM_THREADS = 12
 
 func run(args []string) int {
 	if len(args) < 2 {
@@ -45,10 +47,11 @@ func run(args []string) int {
 			inFs, _ := os.OpenFile(input, os.O_RDONLY, 0o764)
 			defer inFs.Close()
 			buff := make([]byte, FILE_CHUNK_SIZE)
-			inFs.Seek(int64(offset)*blockSize, 0)
+			// inFs.Seek(int64(offset)*blockSize, 0)
 			var totalRead int64 = 0
 			for totalRead < blockSize-1 {
-				n, err := inFs.Read(buff)
+				// n, err := inFs.Read(buff)
+				n, err := syscall.Pread(int(inFs.Fd()), buff, int64(offset)*blockSize)
 				if err != nil {
 					fmt.Println(err)
 				}

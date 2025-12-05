@@ -1,12 +1,17 @@
 // TO IMPROVE
-// - ParseF64()
-// - IndexByte()
 // map access
+
+// Steps to optimize:
+// Use 1 map and sync read/write instead of merging lots of map
+// Map contains pointer to struct, so faster read/write and merge
+// Remove merge thread and do it in compute ?
+// multithread read with syscall.Pread => hudge upgrade
 
 package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"hash/maphash"
 	"math"
@@ -14,7 +19,6 @@ import (
 	"runtime"
 	"slices"
 	"sync"
-	"time"
 )
 
 // Rules and limits
@@ -37,7 +41,7 @@ import (
 
 // Must be at least the maximum size of a line + 1 for NL
 // So 107 bytes at minimum
-const FILE_CHUNK_SIZE = 1024 * 1024 * 32
+const FILE_CHUNK_SIZE = 1024 * 1024
 const MAX_NUMBER_OF_KEYS = 10000
 
 type HashType = uint64
@@ -61,11 +65,18 @@ func NewBlockData(name []byte) BlockData {
 	}
 }
 
-type StationMap = map[HashType]BlockData
+type StationMap = map[HashType]*BlockData
 
 func Solve(input, output string) error {
 	inFs, _ := os.OpenFile(input, os.O_RDONLY, 0o764)
 	defer inFs.Close()
+	var inSize int64
+	if info, err := inFs.Stat(); err == nil {
+		inSize = info.Size()
+	} else {
+		return errors.New("Cannot Stat file")
+	}
+	fmt.Println(inSize)
 	outFs, err := os.OpenFile(output, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o764)
 	if err != nil {
 		fmt.Println(err)
@@ -73,43 +84,15 @@ func Solve(input, output string) error {
 	}
 	defer outFs.Close()
 	dataMap := make(StationMap, MAX_NUMBER_OF_KEYS)
-	err = start1BRC(inFs, outFs, dataMap)
-	return err
-}
 
-func start1BRC(inFs, outFs *os.File, dataMap StationMap) error {
 	var wg sync.WaitGroup
-	// Keep one thread for main/writeOutput
 	numThreads := runtime.NumCPU()
-	reader := make(chan []byte, numThreads)
-	writer := make(chan StationMap, numThreads)
-	stop := make(chan bool)
-
-	go mergeBlocks(writer, stop, dataMap)
-	for range numThreads - 1 {
+	for range numThreads {
 		wg.Add(1)
-		go compute(&wg, reader, writer)
+		go compute(&wg, dataMap)
 	}
-	// main thread = start, read, wait, write (cannot be parallelized)
-	// 1 thread for merge (merge as soon as a block has been treated)
-	// 1 to (MAX_THREAD-1) for compute (compute as soon values comes from the reader)
-	// using 2 thread (main + 1x merge + 1x compute) = 1min
-	// using 12 thread (main + 1x merge + 1x compute) = 8sec
-	// 8300ms
-	// read only = 2600ms
-	// without merge = 7800ms
-	// other part (merge + compute) = 5700ms
-	time1 := time.Now().UnixMicro() / 1000
-	_ = readInput(inFs, reader)
-	time2 := time.Now().UnixMicro() / 1000
-	fmt.Println(time2 - time1)
-	// 40ms
 	wg.Wait()
-	close(writer)
-	<-stop
-	// 70ms
 	writeOutput(outFs, dataMap)
-	//
 	return nil
 }
 
@@ -219,7 +202,8 @@ func readInput(inFs *os.File, reader chan []byte) int {
 		cpyBuff := make([]byte, lastNlOffset+1) // include NL for optimization
 		copy(cpyBuff, buffer[:lastNlOffset+1])
 		reader <- cpyBuff
-		nOfBLocks += 1
+		nOfBLocks += 1 // stats
+		// copy not used data at then end to the beginning of the buffer for next round
 		copy(buffer, buffer[lastNlOffset+1:endOfByteRead])
 		bufferOffset = endOfByteRead - lastNlOffset - 1
 	}
