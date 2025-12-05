@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
+	"sync"
 )
 
 // Rules and limits
@@ -24,9 +26,107 @@ import (
 
 // Output: "{STATION=MIN/MEAN/MAX, ...}"
 
-func main() {
-	ret := run(os.Args)
-	os.Exit(ret)
+// Must be at least the maximum size of a line + 1 for NL
+// So 107 bytes at minimum
+const FILE_CHUNK_SIZE = 1024 * 1024 * 4
+const WORK_LINE_SIZE = 4096
+
+type BlockData struct {
+	Id       int
+	Min      float32
+	Max      float32
+	Sum      float32
+	Quantity int
+}
+
+type StationMap = map[string]int
+
+func Solve(input, output string) error {
+	inFs, _ := os.OpenFile(input, os.O_RDONLY, 0o764)
+	defer inFs.Close()
+	outFs, err := os.OpenFile(output, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o764)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	defer outFs.Close()
+	dataMap := make(StationMap, 4096)
+	outFs.Write([]byte{'{'})
+	err = start1BRC(inFs, outFs, dataMap)
+	outFs.Write([]byte{'}', '\n'})
+	fmt.Println(dataMap)
+	return err
+}
+
+func start1BRC(inFs, outFs *os.File, dataMap StationMap) error {
+	numThreads := runtime.NumCPU()
+	var wg sync.WaitGroup
+	reader := make(chan string, numThreads)
+	writer := make(chan BlockData, numThreads)
+
+	go readInput(inFs, reader)
+	go writeOutput(writer, dataMap)
+	for range numThreads {
+		wg.Add(1)
+		go compute(&wg, reader, writer)
+	}
+	wg.Wait()
+	close(writer)
+	return nil
+}
+
+func compute(wg *sync.WaitGroup, reader chan string, writer chan BlockData) {
+	defer wg.Done()
+	for data := range reader {
+		// Format: xxx;-xx.x
+		// FOREACH line -> dont split, linear walk + slices
+		// 1) Find ';'
+		// 2) convert name to int hash
+		// 3) convert end of line to float (from ;+1 to \n or 0)
+		// 4) get entry for xxx if existing, else empty data
+		// 5) compute
+		// 6) store new value
+		nOfLines := strings.Count(data, "\n") + 1
+		// fmt.Println("line=", data)
+		writer <- BlockData{Id: 0, Min: 0, Max: 0, Sum: 0, Quantity: nOfLines}
+	}
+}
+
+func writeOutput(writer chan BlockData, dataMap StationMap) {
+	total := 0
+	dataMap["ok"] = 0
+	for data := range writer {
+		total += int(data.Quantity)
+		dataMap["ok"] += int(data.Quantity)
+	}
+	fmt.Println("Total=", total)
+}
+
+// Read input file by chunk and send block of full lines to the compute thread
+func readInput(inFs *os.File, reader chan string) {
+	fmt.Println("Start of reader")
+	buffer := make([]byte, FILE_CHUNK_SIZE)
+	lastNlOffset := 0
+	bufferOffset := 0
+	for {
+		n, err := inFs.Read(buffer[bufferOffset:])
+		if err != nil || n == 0 {
+			break
+		}
+		endOfByteRead := bufferOffset + n
+		// here compute lines
+		for i := endOfByteRead - 1; i >= 0; i-- {
+			if buffer[i] == '\n' {
+				lastNlOffset = i
+				break
+			}
+		}
+		reader <- string(buffer[:lastNlOffset])
+		copy(buffer, buffer[lastNlOffset+1:endOfByteRead])
+		bufferOffset = endOfByteRead - lastNlOffset - 1
+	}
+	close(reader)
+	fmt.Println("End of reader")
 }
 
 func run(args []string) int {
@@ -43,44 +143,7 @@ func run(args []string) int {
 	}
 }
 
-type BlockData struct {
-	Min      float32
-	Max      float32
-	Sum      float32
-	Quantity int32
-}
-
-func Solve(input, output string) error {
-	inFs, _ := os.OpenFile(input, os.O_RDONLY, 0o764)
-	defer inFs.Close()
-	outFs, err := os.OpenFile(output, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o764)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	defer outFs.Close()
-	outFs.Write([]byte{'{'})
-	err = start1BRC(inFs, outFs)
-	outFs.Write([]byte{'}', '\n'})
-	return err
-}
-
-func start1BRC(inFs, outFs *os.File) error {
-	numThreads := runtime.NumCPU()
-	reader := make(chan BlockData, numThreads)
-	go readInput(inFs, reader)
-
-	var buffer = make([]BlockData, numThreads)
-	for range numThreads {
-		data := <-reader
-		buffer = append(buffer, data)
-	}
-
-	return nil
-}
-
-func readInput(inFs *os.File, reader chan BlockData) {
-	for {
-		reader <- BlockData{}
-	}
+func main() {
+	ret := run(os.Args)
+	os.Exit(ret)
 }
