@@ -3,13 +3,9 @@ package main
 import (
 	"bytes"
 	"slices"
-	"sync"
 
 	"github.com/zeebo/xxh3"
 )
-
-var counter int = 0
-var mutDebug sync.Mutex
 
 type MapStation = map[uint64]*StationData
 
@@ -53,14 +49,8 @@ func mergeMaps(allStationMaps []MapStation, stationLst *[]*StationData) MapStati
 }
 
 func ParseLines(line []byte, stationMap MapStation) {
-	// var name_end int // the ';'
-	// var temp_start int
-	// var temp_end int // temp_start = name_end + 1 (name_end ends on ';', temp_end ends on '\n')
-
-	// var dataMap MapStation = make(MapStation, 32)
-	t := 0 // debug
 	for name_start := 0; name_start < len(line); {
-		// parse data
+		// slices.Index takes most of the time, even with a simple for loop
 		name_end := slices.Index(line[name_start:min(len(line), name_start+101)], ';') // label = 100 bytes + ;
 		temp_start := name_end + 1
 		temp_end := slices.Index(line[name_start+temp_start:name_start+temp_start+6], '\n') // temp = 5 bytes + \n
@@ -68,7 +58,6 @@ func ParseLines(line []byte, stationMap MapStation) {
 			temp_end = len(line)
 		}
 		nameSlice := line[name_start : name_start+name_end]
-		// 10% can be won here at most
 		temp := ParseF32(line[name_start+temp_start : name_start+temp_start+temp_end])
 
 		// create/get structure
@@ -94,13 +83,8 @@ func ParseLines(line []byte, stationMap MapStation) {
 				v.Max = temp
 			}
 		}
-		t += 1 // debug
 		name_start += temp_start + temp_end + 1
 	}
-	// debug
-	// mutDebug.Lock()
-	// counter += t
-	// mutDebug.Unlock()
 }
 
 // getHashFromBytes uses xxh3 fast hash

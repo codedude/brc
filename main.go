@@ -28,7 +28,7 @@ func main() {
 	}
 	nThreads := 1 * runtime.NumCPU() // number of real core
 	chunkSize := 1024 * 512          // in byte
-	err = Solve("samples/measurements-3.txt", "output/measurements-3.out", chunkSize, nThreads)
+	err = Solve("samples/data-1b.txt", "output/data-1b.out", chunkSize, nThreads)
 	if err != nil {
 		log.Fatal(err)
 	}
