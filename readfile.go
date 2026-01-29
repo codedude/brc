@@ -10,7 +10,7 @@ import (
 
 const MAX_LINE_SIZE = 128 // label=100, :=1, temp=5,\n=1 => 107, round to 128
 
-func ReadFileFast(filename string, mergeChan chan MapStation, chunk_size int, n_threads int) error {
+func ReadFileFast(filename string, chunk_size int, n_threads int, allStationMaps *[]MapStation) error {
 	if chunk_size < MAX_LINE_SIZE {
 		return fmt.Errorf("chunk_size must be greater than MAX_LINE_SIZE %d", MAX_LINE_SIZE)
 	}
@@ -43,10 +43,14 @@ func ReadFileFast(filename string, mergeChan chan MapStation, chunk_size int, n_
 		fmt.Printf("n_threads reduced to: %d\n", n_threads)
 	}
 	// fmt.Println(chunk_size, t_chunk_size, t_chunk_size/int64(chunk_size), size)
+	*allStationMaps = make([]MapStation, n_threads)
+	for i := range *allStationMaps {
+		(*allStationMaps)[i] = make(MapStation, 1024)
+	}
 	var wg sync.WaitGroup
 	for i := 0; i < n_threads; i++ {
 		wg.Go(func() {
-			asyncRead(mergeChan, fd, chunk_size, size, int64(i), t_chunk_size)
+			asyncRead(fd, chunk_size, size, int64(i), t_chunk_size, (*allStationMaps)[i])
 		})
 	}
 	wg.Wait()
@@ -54,7 +58,7 @@ func ReadFileFast(filename string, mergeChan chan MapStation, chunk_size int, n_
 }
 
 // read all "t_chunk_size" per thread, "chunk_size" chunk at a time, +MAX_SIZE_LINE at the end
-func asyncRead(mergeChan chan MapStation, fd int, chunk_size int, size, t_i, t_chunk_size int64) {
+func asyncRead(fd int, chunk_size int, size, t_i, t_chunk_size int64, stationMap MapStation) {
 	t_offset_start := int64(t_i) * t_chunk_size
 	buff := make([]byte, chunk_size*2)
 	var totalRead int64 = 0
@@ -84,7 +88,7 @@ func asyncRead(mergeChan chan MapStation, fd int, chunk_size int, size, t_i, t_c
 				break
 			}
 		}
-		ParseLines(mergeChan, buff[:pos])
+		ParseLines(buff[:pos], stationMap)
 		buff_offset = buff_end_offset - (pos + 1)
 		if buff_offset != 0 {
 			copy(buff, buff[pos+1:buff_end_offset])
@@ -103,7 +107,7 @@ func asyncRead(mergeChan chan MapStation, fd int, chunk_size int, size, t_i, t_c
 		// cpyBuff := make([]byte, lastNl)
 		// copy(cpyBuff, buff[:lastNl])
 		// chanOut <- cpyBuff
-		ParseLines(mergeChan, buff[:lastNl])
+		ParseLines(buff[:lastNl], stationMap)
 	}
 }
 

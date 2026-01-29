@@ -21,20 +21,35 @@ type StationData struct {
 	// mean = Sum/size
 }
 
-func mergeMaps(stopChan chan bool, mergeChan chan MapStation, data MapStation) {
-	p := 0
-	for _ = range mergeChan {
-		p += 1
+func mergeMaps(allStationMaps []MapStation) MapStation {
+	baseMap := allStationMaps[0]
+	for i := 1; i < len(allStationMaps); i++ {
+		newMap := allStationMaps[i]
+		for newKey, newValue := range newMap {
+			v, ok := baseMap[newKey]
+			if !ok { // new
+				baseMap[newKey] = newValue
+			} else { // update
+				v.Sum += newValue.Sum
+				v.Size += newValue.Size
+				if newValue.Min < v.Min {
+					v.Min = newValue.Min
+				}
+				if newValue.Max > v.Max {
+					v.Max = newValue.Max
+				}
+			}
+		}
 	}
-	stopChan <- true
+	return baseMap
 }
 
-func ParseLines(mergeChan chan MapStation, line []byte) {
+func ParseLines(line []byte, stationMap MapStation) {
 	// var name_end int // the ';'
 	// var temp_start int
 	// var temp_end int // temp_start = name_end + 1 (name_end ends on ';', temp_end ends on '\n')
 
-	var dataMap MapStation = make(MapStation, 32)
+	// var dataMap MapStation = make(MapStation, 32)
 	t := 0 // debug
 	for name_start := 0; name_start < len(line); {
 		// parse data
@@ -49,7 +64,7 @@ func ParseLines(mergeChan chan MapStation, line []byte) {
 
 		// create/get structure
 		nameHash := getHashFromBytes(nameSlice)
-		v, ok := dataMap[nameHash]
+		v, ok := stationMap[nameHash]
 		if !ok { // new
 			r := StationData{
 				Sum:  temp,
@@ -59,7 +74,7 @@ func ParseLines(mergeChan chan MapStation, line []byte) {
 				Name: make([]byte, len(nameSlice)),
 			}
 			copy(r.Name, nameSlice)
-			dataMap[nameHash] = &r
+			stationMap[nameHash] = &r
 		} else { // update
 			v.Sum += temp
 			v.Size += 1
@@ -73,7 +88,6 @@ func ParseLines(mergeChan chan MapStation, line []byte) {
 		t += 1 // debug
 		name_start += temp_start + temp_end + 1
 	}
-	mergeChan <- dataMap
 	// debug
 	mutDebug.Lock()
 	counter += t
