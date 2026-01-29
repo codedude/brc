@@ -14,9 +14,9 @@ type MapStation = map[uint64]*StationData
 
 type StationData struct {
 	Name []byte
-	Min  float64
-	Max  float64
-	Sum  float64
+	Min  float32
+	Max  float32
+	Sum  float32
 	Size int
 	// mean = Sum/size
 }
@@ -60,7 +60,8 @@ func ParseLines(line []byte, stationMap MapStation) {
 			temp_end = len(line)
 		}
 		nameSlice := line[name_start : name_start+name_end]
-		temp, _ := ParseF64(line[name_start+temp_start : name_start+temp_start+temp_end])
+		// 10% can be won here at most
+		temp := ParseF32(line[name_start+temp_start : name_start+temp_start+temp_end])
 
 		// create/get structure
 		nameHash := getHashFromBytes(nameSlice)

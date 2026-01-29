@@ -2,29 +2,17 @@
 // Faster than std strconv.ParseFloat
 package main
 
-import (
-	"fmt"
-	"math"
-)
-
-func ParseF64(s []byte) (float64, error) {
-	if len(s) == 0 {
-		return 0, fmt.Errorf("cannot parse float64 from empty string")
-	}
+// ParseF32 is ParseF64, but 32bit instead of 64 bits, and remove any error checking to speed things up
+func ParseF32(s []byte) float32 {
 	i := uint(0)
 	minus := s[0] == '-'
 	if minus {
 		i++
-		if i >= uint(len(s)) {
-			return 0, fmt.Errorf("cannot parse float64 from %q", s)
-		}
 	}
-
-	d := uint64(0)
-	j := i
+	d := uint32(0)
 	for i < uint(len(s)) {
 		if s[i] >= '0' && s[i] <= '9' {
-			d = d*10 + uint64(s[i]-'0')
+			d = d*10 + uint32(s[i]-'0')
 			i++
 			// EDIT no need for our case
 			// if i > 18 {
@@ -40,26 +28,7 @@ func ParseF64(s []byte) (float64, error) {
 		}
 		break
 	}
-	if i <= j {
-		ss := s[i:]
-		// EDIT no need for our case
-		// if strings.HasPrefix(ss, "+") {
-		// 	ss = ss[1:]
-		// }
-		// EDIT no need for our case
-		// "infinity" is needed for OpenMetrics support.
-		// See https://github.com/OpenObservability/OpenMetrics/blob/master/OpenMetrics.md
-		// if strings.EqualFold(ss, "inf") || strings.EqualFold(ss, "infinity") {
-		// 	if minus {
-		// 		return -inf, nil
-		// 	}
-		// 	return inf, nil
-		// }
-		// if strings.EqualFold(ss, "nan") {
-		// 	return nan, nil
-		// }
-		return 0, fmt.Errorf("unparsed tail left after parsing float64 from %q: %q", s, ss)
-	}
+
 	// EDIT no need for our case
 	// f := float64(d)
 	// if i >= uint(len(s)) {
@@ -69,17 +38,14 @@ func ParseF64(s []byte) (float64, error) {
 	// 	}
 	// 	return f, nil
 	// }
-	var f float64
+	var f float32
 	if s[i] == '.' {
 		// Parse fractional part.
 		i++
-		if i >= uint(len(s)) {
-			return 0, fmt.Errorf("cannot parse fractional part in %q", s)
-		}
 		k := i
 		for i < uint(len(s)) {
 			if s[i] >= '0' && s[i] <= '9' {
-				d = d*10 + uint64(s[i]-'0')
+				d = d*10 + uint32(s[i]-'0')
 				i++
 				// EDIT no need for our case
 				// if i-j >= uint(len(float64pow10)) {
@@ -94,73 +60,22 @@ func ParseF64(s []byte) (float64, error) {
 			}
 			break
 		}
-		if i < k {
-			return 0, fmt.Errorf("cannot find mantissa in %q", s)
-		}
 		// Convert the entire mantissa to a float at once to avoid rounding errors.
-		f = float64(d) / float64pow10[i-k]
+		f = float32(d) / float64pow10[i-k]
 		if i >= uint(len(s)) {
 			// Fast path - parsed fractional number.
 			if minus {
 				f = -f
 			}
-			return f, nil
+			return f
 		}
 	}
-	if s[i] == 'e' || s[i] == 'E' {
-		// Parse exponent part.
-		i++
-		if i >= uint(len(s)) {
-			return 0, fmt.Errorf("cannot parse exponent in %q", s)
-		}
-		expMinus := false
-		if s[i] == '+' || s[i] == '-' {
-			expMinus = s[i] == '-'
-			i++
-			if i >= uint(len(s)) {
-				return 0, fmt.Errorf("cannot parse exponent in %q", s)
-			}
-		}
-		exp := int16(0)
-		j := i
-		for i < uint(len(s)) {
-			if s[i] >= '0' && s[i] <= '9' {
-				exp = exp*10 + int16(s[i]-'0')
-				i++
-				// EDIT no need for our case
-				// if exp > 300 {
-				// 	// The exponent may be too big for float64.
-				// 	// Fall back to standard parsing.
-				// 	f, err := strconv.ParseFloat(s, 64)
-				// 	if err != nil && !math.IsInf(f, 0) {
-				// 		return 0, fmt.Errorf("cannot parse exponent in %q: %s", s, err)
-				// 	}
-				// 	return f, nil
-				// }
-				continue
-			}
-			break
-		}
-		if i <= j {
-			return 0, fmt.Errorf("cannot parse exponent in %q", s)
-		}
-		if expMinus {
-			exp = -exp
-		}
-		f *= math.Pow10(int(exp))
-		if i >= uint(len(s)) {
-			if minus {
-				f = -f
-			}
-			return f, nil
-		}
-	}
-	return 0, fmt.Errorf("cannot parse float64 from %q", s)
+	return 0
 }
 
 // Exact powers of 10.
 //
 // This works faster than math.Pow10, since it avoids additional multiplication.
-var float64pow10 = [...]float64{
+var float64pow10 = [...]float32{
 	1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16,
 }
