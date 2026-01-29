@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"slices"
 	"sync"
 
@@ -21,13 +22,17 @@ type StationData struct {
 	// mean = Sum/size
 }
 
-func mergeMaps(allStationMaps []MapStation) MapStation {
+func mergeMaps(allStationMaps []MapStation, stationLst *[]*StationData) MapStation {
 	baseMap := allStationMaps[0]
+	for _, v := range baseMap {
+		*stationLst = append(*stationLst, v)
+	}
 	for i := 1; i < len(allStationMaps); i++ {
 		newMap := allStationMaps[i]
 		for newKey, newValue := range newMap {
 			v, ok := baseMap[newKey]
 			if !ok { // new
+				*stationLst = append(*stationLst, newValue)
 				baseMap[newKey] = newValue
 			} else { // update
 				v.Sum += newValue.Sum
@@ -41,6 +46,9 @@ func mergeMaps(allStationMaps []MapStation) MapStation {
 			}
 		}
 	}
+	slices.SortFunc(*stationLst, func(a *StationData, b *StationData) int {
+		return bytes.Compare((*a).Name, (*b).Name)
+	})
 	return baseMap
 }
 

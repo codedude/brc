@@ -29,46 +29,22 @@ func ParseF32(s []byte) float32 {
 		break
 	}
 
-	// EDIT no need for our case
-	// f := float64(d)
-	// if i >= uint(len(s)) {
-	// 	// Fast path - just integer.
-	// 	if minus {
-	// 		f = -f
-	// 	}
-	// 	return f, nil
-	// }
 	var f float32
 	if s[i] == '.' {
 		// Parse fractional part.
 		i++
 		k := i
-		for i < uint(len(s)) {
-			if s[i] >= '0' && s[i] <= '9' {
-				d = d*10 + uint32(s[i]-'0')
-				i++
-				// EDIT no need for our case
-				// if i-j >= uint(len(float64pow10)) {
-				// 	// The mantissa is out of range. Fall back to standard parsing.
-				// 	f, err := strconv.ParseFloat(s, 64)
-				// 	if err != nil && !math.IsInf(f, 0) {
-				// 		return 0, fmt.Errorf("cannot parse mantissa in %q: %s", s, err)
-				// 	}
-				// 	return f, nil
-				// }
-				continue
-			}
-			break
+		if s[i] >= '0' && s[i] <= '9' {
+			d = d*10 + uint32(s[i]-'0')
+			i++
 		}
 		// Convert the entire mantissa to a float at once to avoid rounding errors.
 		f = float32(d) / float64pow10[i-k]
-		if i >= uint(len(s)) {
-			// Fast path - parsed fractional number.
-			if minus {
-				f = -f
-			}
-			return f
+		// Fast path - parsed fractional number.
+		if minus {
+			f = -f
 		}
+		return f
 	}
 	return 0
 }
