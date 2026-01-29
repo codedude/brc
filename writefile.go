@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 )
 
@@ -16,13 +17,13 @@ func writeData(filename string, stationLst []*StationData) error {
 	buffer.WriteByte('{')
 	if len(stationLst) > 0 {
 		for i, station := range stationLst {
-			mean := station.Sum / float32(station.Size)
+			mean := math.Round((float64(station.Sum)/float64(station.Size))*10.0) / 10.0
 			min := station.Min
 			max := station.Max
 			if i < len(stationLst)-1 {
-				buffer.WriteString(fmt.Sprintf("%s=%.1f/%.1f/%.1f, ", station.Name, min, mean, max))
+				fmt.Fprintf(&buffer, "%s=%.1f/%.1f/%.1f, ", station.Name, min, mean, max)
 			} else {
-				buffer.WriteString(fmt.Sprintf("%s=%.1f/%.1f/%.1f", station.Name, min, mean, max))
+				fmt.Fprintf(&buffer, "%s=%.1f/%.1f/%.1f", station.Name, min, mean, max)
 			}
 		}
 	}

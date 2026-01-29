@@ -33,9 +33,6 @@ go.work.sum
 
 # Custom
 output
-!samples/measure*.out
 samples/data-1b.txt
-samples/data-1b.out
 brc
 *.prof
-poc

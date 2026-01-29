@@ -5,6 +5,7 @@
 ## Profile
 
 ```bash
+go test -run TestSamples
 go test -cpuprofile cpu.prof -memprofile mem.prof -bench .
 pprof -web brc cpu.prof
 ```

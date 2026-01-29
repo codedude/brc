@@ -8,7 +8,7 @@ import (
 	"syscall"
 )
 
-const MAX_LINE_SIZE = 128 // label=100, :=1, temp=5,\n=1 => 107, round to 128
+const MAX_LINE_SIZE = 128 // label=100, ;=1, temp=5,\n=1 => 107, round to 128
 
 func ReadFileFast(filename string, chunk_size int, n_threads int, allStationMaps *[]MapStation) error {
 	if chunk_size < MAX_LINE_SIZE {
@@ -36,11 +36,11 @@ func ReadFileFast(filename string, chunk_size int, n_threads int, allStationMaps
 			n_threads += 1
 		}
 		t_chunk_size = int64(chunk_size)
-		fmt.Printf("n_threads reduced to: %d, t_chunk augmented to: %d\n", n_threads, t_chunk_size)
+		//fmt.Printf("n_threads reduced to: %d, t_chunk augmented to: %d\n", n_threads, t_chunk_size)
 	}
 	if t_chunk_size == 1 { // to test small values, like 100 thread for a 80 bytes file
 		n_threads = int(size)
-		fmt.Printf("n_threads reduced to: %d\n", n_threads)
+		//fmt.Printf("n_threads reduced to: %d\n", n_threads)
 	}
 	// fmt.Println(chunk_size, t_chunk_size, t_chunk_size/int64(chunk_size), size)
 	*allStationMaps = make([]MapStation, n_threads)

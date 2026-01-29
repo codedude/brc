@@ -14,16 +14,6 @@ func ParseF32(s []byte) float32 {
 		if s[i] >= '0' && s[i] <= '9' {
 			d = d*10 + uint32(s[i]-'0')
 			i++
-			// EDIT no need for our case
-			// if i > 18 {
-			// 	// The integer part may be out of range for uint64.
-			// 	// Fall back to slow parsing.
-			// 	f, err := strconv.ParseFloat(s, 64)
-			// 	if err != nil && !math.IsInf(f, 0) {
-			// 		return 0, err
-			// 	}
-			// 	return f, nil
-			// }
 			continue
 		}
 		break
@@ -39,7 +29,7 @@ func ParseF32(s []byte) float32 {
 			i++
 		}
 		// Convert the entire mantissa to a float at once to avoid rounding errors.
-		f = float32(d) / float64pow10[i-k]
+		f = float32(d) / float32pow10[i-k]
 		// Fast path - parsed fractional number.
 		if minus {
 			f = -f
@@ -50,8 +40,7 @@ func ParseF32(s []byte) float32 {
 }
 
 // Exact powers of 10.
-//
 // This works faster than math.Pow10, since it avoids additional multiplication.
-var float64pow10 = [...]float32{
-	1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16,
+var float32pow10 = [...]float32{
+	1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15,
 }

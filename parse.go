@@ -61,9 +61,9 @@ func ParseLines(line []byte, stationMap MapStation) {
 	t := 0 // debug
 	for name_start := 0; name_start < len(line); {
 		// parse data
-		name_end := slices.Index(line[name_start:min(len(line), name_start+100)], ';') // label = 100 bytes max
+		name_end := slices.Index(line[name_start:min(len(line), name_start+101)], ';') // label = 100 bytes + ;
 		temp_start := name_end + 1
-		temp_end := slices.Index(line[name_start+temp_start:name_start+temp_start+8], '\n') // temp = 5 bytes + \n, round to 8
+		temp_end := slices.Index(line[name_start+temp_start:name_start+temp_start+6], '\n') // temp = 5 bytes + \n
 		if temp_end == -1 {
 			temp_end = len(line)
 		}
@@ -98,9 +98,9 @@ func ParseLines(line []byte, stationMap MapStation) {
 		name_start += temp_start + temp_end + 1
 	}
 	// debug
-	mutDebug.Lock()
-	counter += t
-	mutDebug.Unlock()
+	// mutDebug.Lock()
+	// counter += t
+	// mutDebug.Unlock()
 }
 
 // getHashFromBytes uses xxh3 fast hash

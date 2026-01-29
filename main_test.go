@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"testing"
 )
 
@@ -48,7 +49,7 @@ func testFile(tmpDirPath, file string) bool {
 	expectedOutput := "samples/" + file + ".out"
 	output := tmpDirPath + "/" + file + ".out"
 	// compute samples/X.txt into tmp/x.out
-	if err := Solve(input, output); err != nil {
+	if err := Solve(input, output, 1024*512, runtime.NumCPU()); err != nil {
 		return false
 	}
 	// compare samples/X.out with tmp/X.out
@@ -70,10 +71,11 @@ func TestSamples(t *testing.T) {
 	files := getSamples("samples")
 	tmpDirPath := t.TempDir()
 	for _, file := range files {
-		if !testFile(tmpDirPath, file) {
-			fmt.Println("Fail " + file)
-			t.Fail()
-		}
+		t.Run(fmt.Sprintf("File %s", file), func(t *testing.T) {
+			if !testFile(tmpDirPath, file) {
+				t.Errorf("Fail %s: ", file)
+			}
+		})
 	}
 }
 
