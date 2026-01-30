@@ -11,8 +11,11 @@
 ```bash
 # Some commands to tests and benchmarks
 go test -run TestSamples
+# You need to generate the 1 billion input + solution first for the big one
 go test -run TestBig
 go test -cpuprofile cpu.prof -memprofile mem.prof -bench .
 pprof -web brc cpu.prof
 pprof -web brc mem.prof
+
+go build . && ./brc && go test -cpuprofile cpu.prof -memprofile mem.prof -bench . && pprof -web brc cpu.prof
 ```
