@@ -86,3 +86,22 @@ func TestBig(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestByte(t *testing.T) {
+	if findIndexOf([]byte{32, 48, 32, 47, 98, 99, ';', 10}, ';') != 6 {
+		t.Errorf("fail 1")
+	}
+	if findIndexOf([]byte{32, 48, 32, 47, 98, 99, 10, ';'}, ';') != 7 {
+		t.Errorf("fail 2")
+	}
+	if findIndexOf([]byte{';', 48, 32, 47, 98, 99, 10, 34}, ';') != 0 {
+		t.Errorf("fail 3")
+	}
+	if findIndexOf([]byte{67, 48, 32, 47, 98, 99, 10, 89}, ';') != -1 {
+		t.Errorf("fail 4")
+	}
+	index := findIndexOf([]byte{67, 48, 32, 47, 98, 99, 10, 89, 67, 48, 32, 47, 98, ';', 10, 89}, ';')
+	if index != 13 {
+		t.Errorf("fail 5: %d", index)
+	}
+}

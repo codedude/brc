@@ -4,12 +4,13 @@ package main
 
 // ParseF32 is ParseF64, but 32bit instead of 64 bits, and remove any error checking to speed things up
 func ParseF32(s []byte) float32 {
+	var f float32
 	i := 0
+	d := 0
 	minus := s[0] == '-'
 	if minus {
 		i++
 	}
-	d := 0
 	if s[i] >= '0' && s[i] <= '9' {
 		d = d*10 + int(s[i]-'0')
 		i++
@@ -18,7 +19,6 @@ func ParseF32(s []byte) float32 {
 		d = d*10 + int(s[i]-'0')
 		i++
 	}
-	var f float32
 	if s[i] == '.' {
 		// Parse fractional part.
 		i++
@@ -29,13 +29,13 @@ func ParseF32(s []byte) float32 {
 		}
 		// Convert the entire mantissa to a float at once to avoid rounding errors.
 		f = float32(d) / float32pow10[i-k]
-		// Fast path - parsed fractional number.
-		if minus {
-			f = -f
-		}
-		return f
+	} else {
+		f = float32(d)
 	}
-	return 0
+	if minus {
+		f = -f
+	}
+	return f
 }
 
 // Exact powers of 10.

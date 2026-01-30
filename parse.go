@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
+	"math/bits"
 	"slices"
 
 	"github.com/zeebo/xxh3"
@@ -51,12 +53,9 @@ func mergeMaps(allStationMaps []MapStation, stationLst *[]*StationData) MapStati
 func ParseLines(line []byte, stationMap MapStation) {
 	for name_start := 0; name_start < len(line); {
 		// slices.Index takes most of the time, even with a simple for loop
-		name_end := slices.Index(line[name_start:min(len(line), name_start+101)], ';') // label = 100 bytes + ;
+		name_end := findIndexOf(line[name_start:name_start+128], ';') // label = 100 bytes + ;
 		temp_start := name_end + 1
-		temp_end := slices.Index(line[name_start+temp_start:name_start+temp_start+6], '\n') // temp = 5 bytes + \n
-		if temp_end == -1 {
-			temp_end = len(line)
-		}
+		temp_end := findIndexOf(line[name_start+temp_start:name_start+temp_start+8], '\n') // temp = 5 bytes + \n
 		nameSlice := line[name_start : name_start+name_end]
 		temp := ParseF32(line[name_start+temp_start : name_start+temp_start+temp_end])
 
@@ -90,4 +89,36 @@ func ParseLines(line []byte, stationMap MapStation) {
 // getHashFromBytes uses xxh3 fast hash
 func getHashFromBytes(data []byte) uint64 {
 	return xxh3.Hash(data)
+}
+
+func findIndexOf(haystack []byte, needle byte) int {
+	// return slices.Index(haystack, needle)
+	pattern := compilePattern(needle)
+	for i := 0; i < len(haystack); i += 8 {
+		index := firstInstance(binary.BigEndian.Uint64(haystack[i:i+8]), pattern)
+		if index != 8 {
+			return i + index
+		}
+	}
+	return -1
+}
+
+// https://richardstartin.github.io/posts/finding-bytes
+func compilePattern(byteToFind byte) uint64 {
+	var pattern uint64 = uint64(byteToFind & 0xFF)
+	return pattern |
+		(pattern << 8) |
+		(pattern << 16) |
+		(pattern << 24) |
+		(pattern << 32) |
+		(pattern << 40) |
+		(pattern << 48) |
+		(pattern << 56)
+}
+
+func firstInstance(word, pattern uint64) int {
+	var input uint64 = word ^ pattern
+	var tmp uint64 = (input & 0x7F7F7F7F7F7F7F7F) + 0x7F7F7F7F7F7F7F7F
+	tmp = ^(tmp | input | 0x7F7F7F7F7F7F7F7F)
+	return bits.LeadingZeros64(tmp) >> 3
 }
