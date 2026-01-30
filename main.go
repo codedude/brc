@@ -1,4 +1,4 @@
-// Macbook pro M2 Pro 12 threads: 3.6sec, 24Mo of RAM
+// Macbook pro M2 Pro 12 threads: 4.7sec, 25Mo of RAM
 package main
 
 import (
@@ -29,6 +29,7 @@ func main() {
 	nThreads := 1 * runtime.NumCPU() // number of real core
 	chunkSize := 1024 * 512          // in byte
 	err = Solve("samples/data-1b.txt", "output/data-1b.out", chunkSize, nThreads)
+	// err = Solve("samples/measurements-20.txt", "output/measurements-20.out", chunkSize, nThreads)
 	if err != nil {
 		log.Fatal(err)
 	}

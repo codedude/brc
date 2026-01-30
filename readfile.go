@@ -102,11 +102,7 @@ func asyncRead(fd int, chunk_size int, size, t_i, t_chunk_size int64, stationMap
 		// even if we are on a \n. This way, we know each line will be parsed once,
 		// and threads can be independant
 		_, _ = syscall.Pread(fd, buff[buff_offset:MAX_LINE_SIZE], t_offset_start+totalRead)
-		// fmt.Println("#", string(buff[:buff_offset+MAX_LINE_SIZE]), "#\n")
 		lastNl := nextNlInBuff(buff)
-		// cpyBuff := make([]byte, lastNl)
-		// copy(cpyBuff, buff[:lastNl])
-		// chanOut <- cpyBuff
 		ParseLines(buff[:lastNl], stationMap)
 	}
 }
