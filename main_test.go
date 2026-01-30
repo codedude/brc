@@ -87,6 +87,17 @@ func TestBig(t *testing.T) {
 	}
 }
 
+// TestBig test the 1b inputs file without output check, for profiling
+func TestBigProf(t *testing.T) {
+	tmpDirPath := t.TempDir()
+	file := "data-1b"
+	input := "samples/" + file + ".txt"
+	output := tmpDirPath + "/" + file + ".out"
+	if err := Solve(input, output, 1024*1024*2, 2*runtime.NumCPU()); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestByte(t *testing.T) {
 	if findIndexOf([]byte{32, 48, 32, 47, 98, 99, ';', 10}, ';') != 6 {
 		t.Errorf("fail 1")
