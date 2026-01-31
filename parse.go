@@ -22,6 +22,7 @@ type StationData struct {
 
 func mergeMaps(allStationMaps []MapStation, stationLst *[]*StationData) MapStation {
 	baseMap := allStationMaps[0]
+	// add unseen station pointer to an array to sort them later
 	for _, v := range baseMap {
 		*stationLst = append(*stationLst, v)
 	}
