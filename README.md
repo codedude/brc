@@ -25,13 +25,13 @@ Default output: ./output/[input].out
 
 ```bash
 # Some commands to tests and benchmarks
-go test -run TestSamples
+go test . -run TestSamples
 # You need to generate the 1 billion input + solution first for the big one
-go test -run TestBigProf
+go test . -run TestBigProf
 go test -cpuprofile cpu.prof -memprofile mem.prof -bench .
 pprof -web brc cpu.prof
 pprof -web brc mem.prof
 # Build + dry run first
-go build . && ./brc
-go test -run TestBigProf -cpuprofile cpu.prof -memprofile mem.prof -bench . && pprof -web brc cpu.prof
+go build . && ./brc -input samples/measurements-20.txt
+go test . -cpuprofile cpu.prof -memprofile mem.prof -bench . && pprof -web brc cpu.prof
 ```
