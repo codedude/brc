@@ -54,9 +54,9 @@ func mergeMaps(allStationMaps []MapStation, stationLst *[]*StationData) MapStati
 func ParseLines(line []byte, stationMap MapStation) {
 	for name_start := 0; name_start < len(line); {
 		// slices.Index takes most of the time, even with a simple for loop
-		name_end := findIndexOf(line[name_start:min(name_start+128, len(line))], ';') // label = 100 bytes + ;
+		name_end := findIndexOf(line[name_start:min(name_start+104, len(line)+1)], ';') // label = 100 bytes + ;
 		temp_start := name_end + 1
-		temp_end := findIndexOf(line[name_start+temp_start:name_start+temp_start+8], '\n') // temp = 5 bytes + \n
+		temp_end := findIndexOf(line[name_start+temp_start:min(name_start+temp_start+8, len(line)+1)], '\n') // temp = 5 bytes + \n
 		nameSlice := line[name_start : name_start+name_end]
 		temp := ParseF64(line[name_start+temp_start : name_start+temp_start+temp_end])
 
@@ -92,6 +92,7 @@ func getHashFromBytes(data []byte) uint64 {
 	return xxh3.Hash(data)
 }
 
+// findIndexOf is more efficient when haystack is a divisible by 2
 func findIndexOf(haystack []byte, needle byte) int {
 	// return slices.Index(haystack, needle)
 	pattern := compilePattern(needle)
