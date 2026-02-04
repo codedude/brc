@@ -13,9 +13,9 @@ type MapStation = map[uint64]*StationData
 
 type StationData struct {
 	Name []byte
-	Min  float32
-	Max  float32
-	Sum  float32
+	Min  float64
+	Max  float64
+	Sum  float64
 	Size int
 	// mean = Sum/size
 }
@@ -54,18 +54,18 @@ func mergeMaps(allStationMaps []MapStation, stationLst *[]*StationData) MapStati
 func ParseLines(line []byte, stationMap MapStation) {
 	for name_start := 0; name_start < len(line); {
 		// slices.Index takes most of the time, even with a simple for loop
-		name_end := findIndexOf(line[name_start:name_start+128], ';') // label = 100 bytes + ;
+		name_end := findIndexOf(line[name_start:min(name_start+128, len(line))], ';') // label = 100 bytes + ;
 		temp_start := name_end + 1
 		temp_end := findIndexOf(line[name_start+temp_start:name_start+temp_start+8], '\n') // temp = 5 bytes + \n
 		nameSlice := line[name_start : name_start+name_end]
-		temp := ParseF32(line[name_start+temp_start : name_start+temp_start+temp_end])
+		temp := ParseF64(line[name_start+temp_start : name_start+temp_start+temp_end])
 
 		// create/get structure
 		nameHash := getHashFromBytes(nameSlice)
 		v, ok := stationMap[nameHash]
 		if !ok { // new
 			r := StationData{
-				Sum:  temp,
+				Sum:  float64(temp),
 				Size: 1,
 				Min:  temp,
 				Max:  temp,
@@ -74,7 +74,7 @@ func ParseLines(line []byte, stationMap MapStation) {
 			copy(r.Name, nameSlice)
 			stationMap[nameHash] = &r
 		} else { // update
-			v.Sum += temp
+			v.Sum += float64(temp)
 			v.Size += 1
 			if temp < v.Min {
 				v.Min = temp
@@ -95,8 +95,17 @@ func getHashFromBytes(data []byte) uint64 {
 func findIndexOf(haystack []byte, needle byte) int {
 	// return slices.Index(haystack, needle)
 	pattern := compilePattern(needle)
+	var uintSlice []byte
+	tmpUint := make([]byte, 8)
 	for i := 0; i < len(haystack); i += 8 {
-		index := firstInstance(binary.BigEndian.Uint64(haystack[i:i+8]), pattern)
+		if i+8 >= len(haystack) { // dont buffer overflow
+			// tmpUint used once per function call, is already 0 initilized
+			copy(tmpUint, haystack[i:])
+			uintSlice = tmpUint
+		} else {
+			uintSlice = haystack[i : i+8]
+		}
+		index := firstInstance(binary.BigEndian.Uint64(uintSlice), pattern)
 		if index != 8 {
 			return i + index
 		}

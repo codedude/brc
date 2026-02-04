@@ -44,26 +44,28 @@ func getSamples(path string) []string {
 	return filesStr
 }
 
-func testFile(tmpDirPath, file string) bool {
+func testFile(tmpDirPath, file string, chunkSize, nThreads int) error {
 	input := "samples/" + file + ".txt"
 	expectedOutput := "samples/" + file + ".out"
 	output := tmpDirPath + "/" + file + ".out"
 	// compute samples/X.txt into tmp/x.out
-	if err := Solve(input, output, 1024*512, runtime.NumCPU()); err != nil {
-		return false
+	if err := Solve(input, output, chunkSize, nThreads); err != nil {
+		return err
 	}
 	// compare samples/X.out with tmp/X.out
 	expected, err := hashFile(expectedOutput)
 	if err != nil {
-		fmt.Println(err)
-		return false
+		return err
 	}
 	computed, err := hashFile(output)
 	if err != nil {
 		fmt.Println(err)
-		return false
+		return err
 	}
-	return expected == computed
+	if expected != computed {
+		return fmt.Errorf("Wrong output")
+	}
+	return nil
 }
 
 // TestSamples test all test cases in samples directory
@@ -71,19 +73,23 @@ func TestSamples(t *testing.T) {
 	files := getSamples("samples")
 	tmpDirPath := t.TempDir()
 	for _, file := range files {
-		t.Run(fmt.Sprintf("File %s", file), func(t *testing.T) {
-			if !testFile(tmpDirPath, file) {
-				t.Errorf("Fail %s: ", file)
+		for _, chunkSize := range []int{128, 129, 512, 1024 * 1024} {
+			for _, nThreads := range []int{1, 2, 5, 16} {
+				t.Run(fmt.Sprintf("File=%s, chunkSize=%d, mThreads=%d", file, chunkSize, nThreads), func(t *testing.T) {
+					if err := testFile(tmpDirPath, file, chunkSize, nThreads); err != nil {
+						t.Errorf("File=%s, chunkSize=%d, mThreads=%d: %s", file, chunkSize, nThreads, err.Error())
+					}
+				})
 			}
-		})
+		}
 	}
 }
 
 // TestBig test the 1b inputs file
 func TestBig(t *testing.T) {
 	tmpDirPath := t.TempDir()
-	if !testFile(tmpDirPath, "data-1b") {
-		t.Fail()
+	if err := testFile(tmpDirPath, "data-1b", 1024*1024, runtime.NumCPU()); err != nil {
+		t.Fatalf("%s", err.Error())
 	}
 }
 

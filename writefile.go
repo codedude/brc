@@ -17,7 +17,8 @@ func writeData(filename string, stationLst []*StationData) error {
 	buffer.WriteByte('{')
 	if len(stationLst) > 0 {
 		for i, station := range stationLst {
-			mean := math.Round((float64(station.Sum)/float64(station.Size))*10.0) / 10.0
+			mean := math.Round(station.Sum/float64(station.Size)*100.0) / 100.0
+			mean = math.Round(mean*10.0) / 10.0
 			min := station.Min
 			max := station.Max
 			if i < len(stationLst)-1 {

@@ -2,9 +2,9 @@
 // Faster than std strconv.ParseFloat
 package main
 
-// ParseF32 is ParseF64, but 32bit instead of 64 bits, and remove any error checking to speed things up
-func ParseF32(s []byte) float32 {
-	var f float32
+// ParseF64, over simplified. We only need to parse -99.9 to 99.9 float, input is always valid
+func ParseF64(s []byte) float64 {
+	var f float64
 	i := 0
 	d := 0
 	minus := s[0] == '-'
@@ -20,7 +20,6 @@ func ParseF32(s []byte) float32 {
 		i++
 	}
 	if s[i] == '.' {
-		// Parse fractional part.
 		i++
 		k := i
 		if s[i] >= '0' && s[i] <= '9' {
@@ -28,9 +27,9 @@ func ParseF32(s []byte) float32 {
 			i++
 		}
 		// Convert the entire mantissa to a float at once to avoid rounding errors.
-		f = float32(d) / float32pow10[i-k]
+		f = float64(d) / float64pow10[i-k]
 	} else {
-		f = float32(d)
+		f = float64(d)
 	}
 	if minus {
 		f = -f
@@ -40,6 +39,6 @@ func ParseF32(s []byte) float32 {
 
 // Exact powers of 10.
 // This works faster than math.Pow10, since it avoids additional multiplication.
-var float32pow10 = [...]float32{
+var float64pow10 = [...]float64{
 	1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15,
 }
