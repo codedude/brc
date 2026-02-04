@@ -48,16 +48,16 @@ func main() {
 	}
 	inputPath := flag.String("input", "", "Input file path")
 	nThreads := flag.Int("n_threads", runtime.NumCPU(), "Max number of threads to use [1-1024]")
-	chunkSize := flag.Int("chunk_size", 1024*1024*1, fmt.Sprintf("Chunk size per read [128-%d]", math.MaxInt32))
+	chunkSize := flag.Int("chunk_size", 1024*1024*1, fmt.Sprintf("Chunk size per read [107-%d]", math.MaxInt32))
 	verbose := flag.Bool("verbose", false, "If off, not output on stdout")
 	flag.Parse()
 	if len(*inputPath) == 0 {
 		usageAndExit("input is empty")
 	}
-	if nThreads != nil && (*nThreads < 1 || *nThreads > 1024) {
+	if nThreads != nil && *nThreads < 1 {
 		usageAndExit("n_threads out of bound")
 	}
-	if chunkSize != nil && *chunkSize < 128 {
+	if chunkSize != nil && *chunkSize < REAL_MAX_LINE_SIZE {
 		usageAndExit("chunk_size out of bound")
 	}
 	err := os.Mkdir("output", 0o764)
