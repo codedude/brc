@@ -111,7 +111,7 @@ func asyncRead(fd int, chunk_size, size, t_i, t_chunk_size int64, stationMap Map
 			}
 		}
 		if pos >= MIN_LINE_SIZE-1 {
-			ParseLines(buff[:pos], stationMap)
+			ParseLines(buff[:pos+1], stationMap)
 		} // else we are at end of t_chunk_size, treated after the loop
 		buff_offset = buff_end_offset - (pos + 1)
 		copy(buff, buff[pos+1:buff_end_offset])
