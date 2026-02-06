@@ -24,6 +24,15 @@ Default output: ./output/[input].out
 ## Test & Profile
 
 ```bash
+# Generate the 1 billion line file (14.8Go)
+git clone https://github.com/gunnarmorling/1brc.git
+cd 1brc/src/main/python
+# You must have a "python" in your path, it takes some minutes
+./create_measurements.py
+# Copy the output file in 1brc/data/measurments.txt to brc/samples/data1b.txt
+```
+
+```bash
 # Some commands to tests and benchmarks
 go test . -run TestSamples
 # You need to generate the 1 billion input + solution first for the big one
