@@ -2,33 +2,17 @@
 package main
 
 import (
+	brc "brc/core"
 	"errors"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"path"
 	"runtime"
+	"runtime/pprof"
+	"slices"
+	"time"
 )
-
-func Solve(file_in, file_out string, chunkSize, nThreads int) error {
-	var allStationMaps []MapStation = nil
-	err := ReadFileFast(file_in, chunkSize, nThreads, &allStationMaps)
-	if err != nil {
-		return err
-	}
-	// estimate the final number of stations to limit allocation during loop
-	// quick and dirty but works: 877 => 1024, 1024 => 2048, 8191 => 8192
-	totalKeySize := 0
-	for _, m := range allStationMaps {
-		totalKeySize += len(m)
-	}
-	totalKeySize = (totalKeySize/nThreads/1024 + 1) * 1024
-	stationLst := make([]*StationData, 0, totalKeySize)
-	mergeMaps(allStationMaps, &stationLst)
-	err = writeData(file_out, stationLst)
-	return err
-}
 
 func usageAndExit(msg string) {
 	fmt.Fprintf(os.Stderr, "error: %s\n", msg)
@@ -44,36 +28,80 @@ func stderrAndExit(msg string) {
 
 func main() {
 	if len(os.Args) < 1 {
-		usageAndExit("Not enough argument")
+		usageAndExit("not enough argument")
 	}
 	inputPath := flag.String("input", "", "Input file path")
-	nThreads := flag.Int("n_threads", runtime.NumCPU(), "Max number of threads to use [1-1024]")
-	chunkSize := flag.Int("chunk_size", 1024*1024*1, fmt.Sprintf("Chunk size per read [107-%d]", math.MaxInt32))
-	verbose := flag.Bool("verbose", false, "If off, not output on stdout")
+	nThreads := flag.Int("threads", runtime.NumCPU(), "Max number of threads to use (default=number of cores)")
+	chunkSize := flag.Int("chunk", (1024*1024)/os.Getpagesize(), fmt.Sprintf("Chunk size per read (a factor of pagesize=%db, default=1Mb)", os.Getpagesize()))
+	readerMode := flag.String("reader", string(brc.BrcReaderDisk), "Read from disk or mmap the file first [disk,mmap]")
+	strategy := flag.String("mode", string(brc.BrcStrategyLazyRead), "Pre read all file or read as needed [preload,lazy]")
+	verbose := flag.Bool("v", false, "If off, not output on stdout")
+	profiling := flag.Bool("p", false, "Activate incode pprof CPU profiling")
 	flag.Parse()
 	if len(*inputPath) == 0 {
 		usageAndExit("input is empty")
 	}
 	if nThreads != nil && *nThreads < 1 {
-		usageAndExit("n_threads out of bound")
+		usageAndExit("threads out of bound")
 	}
-	if chunkSize != nil && *chunkSize < REAL_MAX_LINE_SIZE {
-		usageAndExit("chunk_size out of bound")
+	if chunkSize != nil && *chunkSize < 1 {
+		usageAndExit("chunk out of bound")
+	}
+	if !slices.Contains(brc.BrcStrategyList, brc.BrcStrategyType(*strategy)) {
+		usageAndExit("strategy unknown")
+	}
+	if !slices.Contains(brc.BrcReaderList, brc.BrcReaderType(*readerMode)) {
+		usageAndExit("mode unknown")
+	}
+	input_file := *inputPath
+	if _, err := os.Stat(input_file); errors.Is(err, os.ErrNotExist) {
+		stderrAndExit(fmt.Sprintf("Input file does not exists or is not accessible: %s", err.Error()))
 	}
 	err := os.Mkdir("output", 0o764)
 	if err != nil && !os.IsExist(err) {
 		stderrAndExit(fmt.Sprintf("Cannot create output folder: %s", err.Error()))
 	}
-	input_file := *inputPath
 	output_file := path.Join("./output", path.Base(input_file)) + ".out"
-	if _, err := os.Stat(input_file); errors.Is(err, os.ErrNotExist) {
-		stderrAndExit(fmt.Sprintf("Input file does not exists or is not accessible: %s", err.Error()))
+	opts := brc.BrcOptions{
+		NThreads:        *nThreads,
+		ReadChunkFactor: *chunkSize,
+		Strategy:        brc.BrcStrategyType(*strategy),
+		ReaderType:      brc.BrcReaderType(*readerMode),
+		Verbose:         *verbose,
 	}
-	err = Solve(input_file, output_file, *chunkSize, *nThreads)
+	var fileReader brc.FileReader
+	switch opts.ReaderType {
+	case brc.BrcReaderMmap:
+		fileReader = brc.NewFileMmapReader()
+	case brc.BrcReaderDisk:
+		fileReader = brc.NewFileDiskReader()
+	default:
+		stderrAndExit("unknown reader")
+	}
+	err = fileReader.Open(input_file)
 	if err != nil {
 		stderrAndExit(err.Error())
 	}
-	if *verbose {
+	defer fileReader.Close()
+	if *profiling {
+		f, err := os.Create("cpu.pprof")
+		if err != nil {
+			stderrAndExit(err.Error())
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+	timeBefore := time.Now()
+	err = brc.Solve(fileReader, output_file, opts)
+	timeAfter := time.Since(timeBefore)
+	if opts.Verbose {
+		fmt.Printf("Time taken total: %s\n", timeAfter.String())
+	}
+	if err != nil {
+		stderrAndExit(err.Error())
+	}
+	if opts.Verbose {
 		fmt.Fprintf(os.Stdout, "Output file: %s\n", output_file)
 	}
 }
