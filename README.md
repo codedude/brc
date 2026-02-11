@@ -4,7 +4,7 @@
 
 ## Result
 
-> On my MacbookPro M2 pro, 32Go of RAM, 12 cores, it uses only 55Mo of RAM (chunk_size=2Mb, n_threads=24), and takes only 3.9 seconds (15Go file size, 8926 unique stations)
+> On my MacbookPro M2 pro, 32Go of RAM, 12 cores, it uses only 32Mo of RAM (chunk=1Mb, threads=12), and takes only 3.9 seconds (15Go file size, 8926 unique stations)
 
 ## Usage
 
@@ -19,6 +19,17 @@ Usage of ./core:
   -verbose
         If off, not output on stdout
 Default output: ./output/[input].out
+```
+
+## Generate the input
+
+```bash
+# Generate the 1 billion line file (14.8Go)
+git clone https://github.com/gunnarmorling/1brc.git
+cd 1brc/src/main/python
+# You must have a "python" in your path, it takes some minutes
+./create_measurements.py
+# Copy the output file in 1brc/data/measurments.txt to brc/samples/data1b.txt
 ```
 
 ## Test & Profile
